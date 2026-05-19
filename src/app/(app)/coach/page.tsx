@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { CoachChat } from "@/components/coach/chat";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";

@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { prisma } from "@/lib/prisma";
 import { MeasurementForm } from "@/components/measurements/measurement-form";
 import { WeightChart } from "@/components/measurements/weight-chart";
