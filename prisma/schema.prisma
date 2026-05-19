@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String
+  heightCm        Float
+  weightKg        Float
+  birthDate       DateTime?
+  experienceLevel String    @default("intermediate")
+  goal            String    @default("hypertrophy")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  programs        Program[]
+  sessions        WorkoutSession[]
+  measurements    BodyMeasurement[]
+  photos          ProgressPhoto[]
+  personalRecords PersonalRecord[]
+  coachMessages   CoachMessage[]
+}
+
+model Exercise {
+  id               String  @id @default(cuid())
+  name             String
+  nameFr           String
+  category         String
+  primaryMuscle    String
+  secondaryMuscles String  @default("[]")
+  equipment        String
+  videoUrl         String?
+  gifUrl           String?
+  instructions     String  @default("")
+  tipsFr           String  @default("")
+  isCustom         Boolean @default(false)
+  createdAt        DateTime @default(now())
+
+  templateExercises TemplateExercise[]
+  sets              ExerciseSet[]
+  personalRecords   PersonalRecord[]
+}
+
+model Program {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String    @default("")
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  isActive    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id])
+  templates WorkoutTemplate[]
+}
+
+model WorkoutTemplate {
+  id         String @id @default(cuid())
+  programId  String
+  name       String
+  dayOfWeek  Int?
+  orderIndex Int    @default(0)
+
+  program   Program            @relation(fields: [programId], references: [id])
+  exercises TemplateExercise[]
+  sessions  WorkoutSession[]
+}
+
+model TemplateExercise {
+  id                String @id @default(cuid())
+  workoutTemplateId String
+  exerciseId        String
+  orderIndex        Int    @default(0)
+  targetSets        Int    @default(3)
+  targetRepsMin     Int    @default(8)
+  targetRepsMax     Int    @default(12)
+  targetRir         Int    @default(2)
+  restSeconds       Int    @default(120)
+  notes             String @default("")
+
+  template WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id])
+  exercise Exercise         @relation(fields: [exerciseId], references: [id])
+}
+
+model WorkoutSession {
+  id                String    @id @default(cuid())
+  userId            String
+  workoutTemplateId String?
+  date              DateTime  @default(now())
+  durationMinutes   Int?
+  bodyweightKg      Float?
+  energyLevel       Int?
+  sleepHours        Float?
+  stressLevel       Int?
+  notes             String    @default("")
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  user     User             @relation(fields: [userId], references: [id])
+  template WorkoutTemplate? @relation(fields: [workoutTemplateId], references: [id])
+  sets     ExerciseSet[]
+}
+
+model ExerciseSet {
+  id               String   @id @default(cuid())
+  workoutSessionId String
+  exerciseId       String
+  setNumber        Int
+  weightKg         Float
+  reps             Int
+  rir              Int?
+  rpe              Float?
+  isWarmup         Boolean  @default(false)
+  isFailure        Boolean  @default(false)
+  notes            String   @default("")
+  createdAt        DateTime @default(now())
+
+  session  WorkoutSession @relation(fields: [workoutSessionId], references: [id])
+  exercise Exercise        @relation(fields: [exerciseId], references: [id])
+}
+
+model BodyMeasurement {
+  id           String   @id @default(cuid())
+  userId       String
+  date         DateTime @default(now())
+  weightKg     Float?
+  bodyFatPct   Float?
+  neckCm       Float?
+  chestCm      Float?
+  waistCm      Float?
+  hipsCm       Float?
+  bicepLeftCm  Float?
+  bicepRightCm Float?
+  thighLeftCm  Float?
+  thighRightCm Float?
+  notes        String   @default("")
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model ProgressPhoto {
+  id       String   @id @default(cuid())
+  userId   String
+  date     DateTime @default(now())
+  frontUrl String?
+  sideUrl  String?
+  backUrl  String?
+  notes    String   @default("")
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PersonalRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  exerciseId String
+  recordType String
+  value      Float
+  date       DateTime @default(now())
+  sessionId  String?
+
+  user     User     @relation(fields: [userId], references: [id])
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+}
+
+model CoachMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  context   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

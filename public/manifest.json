@@ -1,0 +1,20 @@
+{
+  "name": "GymTracker",
+  "short_name": "GymTracker",
+  "description": "Suivi d'entraînement avec coach IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["health", "fitness", "sports"]
+}
