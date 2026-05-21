@@ -6,6 +6,7 @@ import { Flame, Dumbbell, TrendingUp, Zap, ChevronRight, Clock, Scale } from "lu
 import Link from "next/link";
 import { getWeekStats, getStreak, getLastSession } from "@/lib/stats";
 import { formatDuration } from "@/lib/fitness";
+import { ResumeSessionBanner } from "@/components/workout/resume-session-banner";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -48,6 +49,11 @@ export default async function DashboardPage() {
       <div className="px-4 pt-5 pb-1">
         <h1 className="text-xl font-bold">{greeting()}, Mathis 👋</h1>
         <p className="text-sm text-muted-foreground">Prêt pour la séance ?</p>
+      </div>
+
+      {/* Resume in-progress session (client — reads localStorage) */}
+      <div className="pt-2">
+        <ResumeSessionBanner />
       </div>
 
       {/* CTA */}
