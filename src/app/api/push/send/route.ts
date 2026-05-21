@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 
-webpush.setVapidDetails(
-  "mailto:mathisbouyer1650@gmail.com",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
-
 export async function POST(req: NextRequest) {
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!publicKey || !privateKey) {
+    return NextResponse.json({ error: "VAPID keys not configured" }, { status: 503 });
+  }
+
   // Simple auth check — only allow from internal cron
   const auth = req.headers.get("x-cron-secret");
   if (auth !== process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
@@ -20,6 +20,10 @@ export async function POST(req: NextRequest) {
     body: "C'est l'heure de s'entraîner !",
     url: "/workout/new",
   }));
+
+  // Lazy import so module-level init never runs at build time
+  const webpush = (await import("web-push")).default;
+  webpush.setVapidDetails("mailto:mathisbouyer1650@gmail.com", publicKey, privateKey);
 
   const subs = await prisma.pushSubscription.findMany({ where: { userId: "default-user" } });
 
