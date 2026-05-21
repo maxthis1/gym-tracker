@@ -13,6 +13,7 @@ interface StepperProps {
   decimals?: number;
   className?: string;
   size?: "sm" | "md";
+  disabled?: boolean;
 }
 
 export function Stepper({
@@ -24,6 +25,7 @@ export function Stepper({
   decimals = 0,
   className,
   size = "md",
+  disabled = false,
 }: StepperProps) {
   const longPressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -52,13 +54,18 @@ export function Stepper({
   const textCls = size === "sm" ? "text-base font-bold w-12 text-center" : "text-lg font-bold w-14 text-center";
 
   return (
-    <div className={cn("flex items-center gap-0.5 bg-muted/50 rounded-2xl p-0.5", className)}>
+    <div className={cn(
+      "flex items-center gap-0.5 bg-muted/50 rounded-2xl p-0.5",
+      disabled && "opacity-50 pointer-events-none",
+      className
+    )}>
       <button
         type="button"
         className={btnCls}
         onPointerDown={() => startLongPress(decrement)}
         onPointerUp={stopLongPress}
         onPointerLeave={stopLongPress}
+        disabled={disabled}
       >
         <Minus size={iconSize} strokeWidth={2.5} />
       </button>
@@ -71,6 +78,7 @@ export function Stepper({
         onPointerDown={() => startLongPress(increment)}
         onPointerUp={stopLongPress}
         onPointerLeave={stopLongPress}
+        disabled={disabled}
       >
         <Plus size={iconSize} strokeWidth={2.5} />
       </button>

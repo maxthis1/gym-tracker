@@ -1,7 +1,8 @@
 "use client";
 
 import { create } from "zustand";
-import { suggestNextWeight, formatWeight } from "@/lib/fitness";
+import { persist } from "zustand/middleware";
+import { suggestNextWeight } from "@/lib/fitness";
 
 export type SetStatus = "pending" | "done" | "failed";
 
@@ -69,174 +70,212 @@ interface WorkoutStore {
 
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
 
-export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
-  sessionId: null,
-  templateName: "",
-  startedAt: null,
-  exercises: [],
-  restTimer: { active: false, remaining: 0, total: 0, label: "" },
-  isFinished: false,
+export const useWorkoutStore = create<WorkoutStore>()(
+  persist(
+    (set, get) => ({
+      sessionId: null,
+      templateName: "",
+      startedAt: null,
+      exercises: [],
+      restTimer: { active: false, remaining: 0, total: 0, label: "" },
+      isFinished: false,
 
-  initSession(sessionId, templateName, exercises) {
-    set({ sessionId, templateName, startedAt: new Date(), exercises, isFinished: false });
-  },
-
-  updateSetField(exIdx, setIdx, field, value) {
-    set((state) => {
-      const exercises = structuredClone(state.exercises);
-      exercises[exIdx].sets[setIdx][field] = value;
-      return { exercises };
-    });
-  },
-
-  validateSet(exIdx, setIdx, sessionId) {
-    const state = get();
-    const ex = state.exercises[exIdx];
-    const s = ex.sets[setIdx];
-    if (s.status !== "pending") return;
-
-    // Persist to DB (fire-and-forget, errors silently ignored for offline resilience)
-    fetch(`/api/sessions/${sessionId}/sets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        exerciseId: ex.exerciseId,
-        setNumber: s.setNumber,
-        weightKg: s.weightKg,
-        reps: s.reps,
-        rir: s.rir,
-        isWarmup: s.isWarmup,
-        isFailure: false,
-        notes: "",
-      }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.set?.id) {
-          set((state) => {
-            const exercises = structuredClone(state.exercises);
-            exercises[exIdx].sets[setIdx].dbId = data.set.id;
-            return { exercises };
-          });
+      initSession(sessionId, templateName, exercises) {
+        const state = get();
+        // Resume in-progress session — do NOT overwrite existing progress
+        if (
+          state.sessionId === sessionId &&
+          state.exercises.length > 0 &&
+          !state.isFinished
+        ) {
+          return;
         }
-      })
-      .catch(() => {}); // offline — will sync later
+        // Fresh session or different session
+        set({
+          sessionId,
+          templateName,
+          startedAt: new Date(),
+          exercises,
+          isFinished: false,
+          restTimer: { active: false, remaining: 0, total: 0, label: "" },
+        });
+      },
 
-    set((state) => {
-      const exercises = structuredClone(state.exercises);
-      const currentSet = exercises[exIdx].sets[setIdx];
-      currentSet.status = "done";
+      updateSetField(exIdx, setIdx, field, value) {
+        set((state) => {
+          const exercises = structuredClone(state.exercises);
+          exercises[exIdx].sets[setIdx][field] = value;
+          return { exercises };
+        });
+      },
 
-      // Pre-fill next set if it's pending
-      const nextSet = exercises[exIdx].sets[setIdx + 1];
-      if (nextSet && nextSet.status === "pending") {
-        nextSet.weightKg = currentSet.weightKg;
-        nextSet.reps = currentSet.reps;
-        nextSet.rir = currentSet.rir;
-      }
+      validateSet(exIdx, setIdx, sessionId) {
+        const state = get();
+        const ex = state.exercises[exIdx];
+        const s = ex.sets[setIdx];
+        if (s.status !== "pending") return;
 
-      return { exercises };
-    });
+        // Persist to DB (fire-and-forget, errors silently ignored for offline resilience)
+        fetch(`/api/sessions/${sessionId}/sets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            exerciseId: ex.exerciseId,
+            setNumber: s.setNumber,
+            weightKg: s.weightKg,
+            reps: s.reps,
+            rir: s.rir,
+            isWarmup: s.isWarmup,
+            isFailure: false,
+            notes: "",
+          }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.set?.id) {
+              set((state) => {
+                const exercises = structuredClone(state.exercises);
+                exercises[exIdx].sets[setIdx].dbId = data.set.id;
+                return { exercises };
+              });
+            }
+          })
+          .catch(() => {}); // offline — will sync later
 
-    // Start rest timer
-    get().startRestTimer(ex.restSeconds, ex.nameFr);
+        set((state) => {
+          const exercises = structuredClone(state.exercises);
+          const currentSet = exercises[exIdx].sets[setIdx];
+          currentSet.status = "done";
 
-    // Vibrate
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate([100, 50, 100]);
-    }
-  },
+          // Pre-fill next set if it's pending
+          const nextSet = exercises[exIdx].sets[setIdx + 1];
+          if (nextSet && nextSet.status === "pending") {
+            nextSet.weightKg = currentSet.weightKg;
+            nextSet.reps = currentSet.reps;
+            nextSet.rir = currentSet.rir;
+          }
 
-  failSet(exIdx, setIdx, sessionId) {
-    const state = get();
-    const ex = state.exercises[exIdx];
-    const s = ex.sets[setIdx];
-    if (s.status !== "pending") return;
+          return { exercises };
+        });
 
-    fetch(`/api/sessions/${sessionId}/sets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        exerciseId: ex.exerciseId,
-        setNumber: s.setNumber,
-        weightKg: s.weightKg,
-        reps: s.reps,
-        rir: s.rir,
-        isWarmup: false,
-        isFailure: true,
-      }),
-    }).catch(() => {});
+        // Start rest timer
+        get().startRestTimer(ex.restSeconds, ex.nameFr);
 
-    set((state) => {
-      const exercises = structuredClone(state.exercises);
-      exercises[exIdx].sets[setIdx].status = "failed";
-      return { exercises };
-    });
-
-    get().startRestTimer(ex.restSeconds, ex.nameFr);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate([200]);
-    }
-  },
-
-  addSet(exIdx) {
-    set((state) => {
-      const exercises = structuredClone(state.exercises);
-      const ex = exercises[exIdx];
-      const lastSet = ex.sets[ex.sets.length - 1];
-      const newSetNumber = lastSet ? lastSet.setNumber + 1 : 1;
-      ex.sets.push({
-        localId: `local-${Date.now()}`,
-        setNumber: newSetNumber,
-        weightKg: lastSet?.weightKg ?? ex.suggestedWeight,
-        reps: lastSet?.reps ?? ex.targetRepsMin,
-        rir: ex.targetRir,
-        isWarmup: false,
-        isFailure: false,
-        status: "pending",
-      });
-      return { exercises };
-    });
-  },
-
-  startRestTimer(seconds, label) {
-    if (_timerInterval) clearInterval(_timerInterval);
-    set({ restTimer: { active: true, remaining: seconds, total: seconds, label } });
-    _timerInterval = setInterval(() => {
-      const { restTimer } = get();
-      if (restTimer.remaining <= 1) {
-        clearInterval(_timerInterval!);
-        _timerInterval = null;
+        // Vibrate
         if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-          navigator.vibrate([300, 100, 300, 100, 300]);
+          navigator.vibrate([100, 50, 100]);
         }
-        set({ restTimer: { active: false, remaining: 0, total: restTimer.total, label: "" } });
-      } else {
-        set((state) => ({
-          restTimer: { ...state.restTimer, remaining: state.restTimer.remaining - 1 },
-        }));
-      }
-    }, 1000);
-  },
+      },
 
-  tickTimer() {},
+      failSet(exIdx, setIdx, sessionId) {
+        const state = get();
+        const ex = state.exercises[exIdx];
+        const s = ex.sets[setIdx];
+        if (s.status !== "pending") return;
 
-  stopTimer() {
-    if (_timerInterval) {
-      clearInterval(_timerInterval);
-      _timerInterval = null;
+        fetch(`/api/sessions/${sessionId}/sets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            exerciseId: ex.exerciseId,
+            setNumber: s.setNumber,
+            weightKg: s.weightKg,
+            reps: s.reps,
+            rir: s.rir,
+            isWarmup: false,
+            isFailure: true,
+          }),
+        }).catch(() => {});
+
+        set((state) => {
+          const exercises = structuredClone(state.exercises);
+          exercises[exIdx].sets[setIdx].status = "failed";
+          return { exercises };
+        });
+
+        get().startRestTimer(ex.restSeconds, ex.nameFr);
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          navigator.vibrate([200]);
+        }
+      },
+
+      addSet(exIdx) {
+        set((state) => {
+          const exercises = structuredClone(state.exercises);
+          const ex = exercises[exIdx];
+          const lastSet = ex.sets[ex.sets.length - 1];
+          const newSetNumber = lastSet ? lastSet.setNumber + 1 : 1;
+          ex.sets.push({
+            localId: `local-${Date.now()}`,
+            setNumber: newSetNumber,
+            weightKg: lastSet?.weightKg ?? ex.suggestedWeight,
+            reps: lastSet?.reps ?? ex.targetRepsMin,
+            rir: ex.targetRir,
+            isWarmup: false,
+            isFailure: false,
+            status: "pending",
+          });
+          return { exercises };
+        });
+      },
+
+      startRestTimer(seconds, label) {
+        if (_timerInterval) clearInterval(_timerInterval);
+        set({ restTimer: { active: true, remaining: seconds, total: seconds, label } });
+        _timerInterval = setInterval(() => {
+          const { restTimer } = get();
+          if (restTimer.remaining <= 1) {
+            clearInterval(_timerInterval!);
+            _timerInterval = null;
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              navigator.vibrate([300, 100, 300, 100, 300]);
+            }
+            set({ restTimer: { active: false, remaining: 0, total: restTimer.total, label: "" } });
+          } else {
+            set((state) => ({
+              restTimer: { ...state.restTimer, remaining: state.restTimer.remaining - 1 },
+            }));
+          }
+        }, 1000);
+      },
+
+      tickTimer() {},
+
+      stopTimer() {
+        if (_timerInterval) {
+          clearInterval(_timerInterval);
+          _timerInterval = null;
+        }
+        set({ restTimer: { active: false, remaining: 0, total: 0, label: "" } });
+      },
+
+      finishSession() {
+        if (_timerInterval) {
+          clearInterval(_timerInterval);
+          _timerInterval = null;
+        }
+        set({ isFinished: true });
+      },
+    }),
+    {
+      name: "gym-workout-session",
+      // Only persist session data — not the rest timer (it resets anyway)
+      partialize: (state) => ({
+        sessionId: state.sessionId,
+        templateName: state.templateName,
+        startedAt: state.startedAt,
+        exercises: state.exercises,
+        isFinished: state.isFinished,
+      }),
+      // Re-hydrate startedAt as a real Date (localStorage stores it as a string)
+      onRehydrateStorage: () => (state) => {
+        if (state?.startedAt) {
+          state.startedAt = new Date(state.startedAt as unknown as string);
+        }
+      },
     }
-    set({ restTimer: { active: false, remaining: 0, total: 0, label: "" } });
-  },
-
-  finishSession() {
-    if (_timerInterval) {
-      clearInterval(_timerInterval);
-      _timerInterval = null;
-    }
-    set({ isFinished: true });
-  },
-}));
+  )
+);
 
 // Build initial exercise state from server data
 export function buildExerciseState(
