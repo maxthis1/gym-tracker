@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
-import { User, Download, ChevronRight, Dumbbell, Scale } from "lucide-react";
+import { User, Download, ChevronRight, Dumbbell, Scale, BarChart2 } from "lucide-react";
 import Link from "next/link";
+import { NotificationSettings } from "@/components/settings/notification-settings";
 
 const sections = [
   {
@@ -24,8 +25,9 @@ const sections = [
     ],
   },
   {
-    title: "Données",
+    title: "Statistiques",
     items: [
+      { label: "Stats all-time", description: "Volume total, PRs, records", icon: BarChart2, href: "/settings/stats" },
       { label: "Exporter mes données", description: "CSV / JSON", icon: Download, href: "/settings/export" },
     ],
   },
@@ -61,6 +63,16 @@ export default function SettingsPage() {
             </Card>
           </div>
         ))}
+
+        {/* Notifications */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Notifications
+          </p>
+          <Card className="px-4 py-4 border-border/50">
+            <NotificationSettings />
+          </Card>
+        </div>
 
         <p className="text-center text-xs text-muted-foreground/50 py-4">
           GymTracker v0.1.0

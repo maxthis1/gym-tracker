@@ -93,6 +93,27 @@ export async function getLastSession() {
   });
 }
 
+/** Volume par muscle primaire sur les 7 derniers jours */
+export async function getWeekMuscleVolume(): Promise<Record<string, number>> {
+  const since = new Date();
+  since.setDate(since.getDate() - 7);
+
+  const sets = await prisma.exerciseSet.findMany({
+    where: {
+      session: { userId: USER_ID, completedAt: { not: null, gte: since } },
+      isWarmup: false,
+    },
+    include: { exercise: { select: { primaryMuscle: true } } },
+  });
+
+  const vol: Record<string, number> = {};
+  for (const s of sets) {
+    const m = s.exercise.primaryMuscle;
+    vol[m] = (vol[m] ?? 0) + s.weightKg * s.reps;
+  }
+  return vol;
+}
+
 export async function getAllSessions() {
   return prisma.workoutSession.findMany({
     where: { userId: USER_ID, completedAt: { not: null } },
@@ -102,6 +123,58 @@ export async function getAllSessions() {
       sets: { where: { isWarmup: false } },
     },
   });
+}
+
+export async function getAllTimeStats() {
+  const [sessions, sets, prs] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { userId: USER_ID, completedAt: { not: null } },
+      select: { durationMinutes: true, completedAt: true },
+    }),
+    prisma.exerciseSet.findMany({
+      where: { session: { userId: USER_ID, completedAt: { not: null } }, isWarmup: false },
+      select: { weightKg: true, reps: true, exerciseId: true },
+    }),
+    prisma.personalRecord.findMany({
+      where: { userId: USER_ID, recordType: "1RM" },
+      orderBy: { value: "desc" },
+      take: 5,
+      include: { exercise: { select: { nameFr: true } } },
+    }),
+  ]);
+
+  const totalVolume = sets.reduce((acc, s) => acc + s.weightKg * s.reps, 0);
+  const totalSessions = sessions.length;
+  const totalDurationMins = sessions.reduce((acc, s) => acc + (s.durationMinutes ?? 0), 0);
+  const uniqueExercises = new Set(sets.map((s) => s.exerciseId)).size;
+
+  // Heaviest single set
+  const heaviest = sets.reduce(
+    (best, s) => (s.weightKg > best.weightKg ? s : best),
+    { weightKg: 0, reps: 0, exerciseId: "" }
+  );
+
+  // Longest streak
+  const trainingDays = Array.from(
+    new Set(sessions.map((s) => new Date(s.completedAt!).toISOString().slice(0, 10)))
+  ).sort();
+
+  let longestStreak = 0;
+  let currentStreak = 1;
+  for (let i = 1; i < trainingDays.length; i++) {
+    const prev = new Date(trainingDays[i - 1]);
+    const curr = new Date(trainingDays[i]);
+    const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+    if (diffDays === 1) {
+      currentStreak++;
+      longestStreak = Math.max(longestStreak, currentStreak);
+    } else {
+      currentStreak = 1;
+    }
+  }
+  if (trainingDays.length === 1) longestStreak = 1;
+
+  return { totalVolume, totalSessions, totalDurationMins, uniqueExercises, heaviest, longestStreak, topPRs: prs };
 }
 
 export async function getSessionDetail(sessionId: string) {

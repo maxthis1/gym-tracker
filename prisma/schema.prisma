@@ -179,3 +179,13 @@ model CoachMessage {
 
   user User @relation(fields: [userId], references: [id])
 }
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  endpoint     String   @unique
+  p256dh       String
+  auth         String
+  reminderHour Int      @default(18)
+  createdAt    DateTime @default(now())
+}

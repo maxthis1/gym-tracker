@@ -6,27 +6,35 @@ import { Button } from "@/components/ui/button";
 import { formatDuration } from "@/lib/fitness";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trophy, Dumbbell, Clock, CheckCircle2 } from "lucide-react";
+import { Trophy, Dumbbell, Clock, CheckCircle2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface FinishModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   startedAt: Date;
+  lastSessionVolume?: number | null;
 }
 
-export function FinishModal({ open, onOpenChange, sessionId, startedAt }: FinishModalProps) {
+export function FinishModal({ open, onOpenChange, sessionId, startedAt, lastSessionVolume }: FinishModalProps) {
   const { exercises, finishSession } = useWorkoutStore();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState("");
 
-  const totalSets = exercises.reduce((acc, ex) => acc + ex.sets.filter((s) => s.status === "done").length, 0);
+  const doneSets = exercises.flatMap((ex) => ex.sets.filter((s) => s.status === "done"));
+  const totalSets = doneSets.length;
   const totalVolume = exercises.reduce(
     (acc, ex) =>
       acc + ex.sets.filter((s) => s.status === "done").reduce((a, s) => a + s.weightKg * s.reps, 0),
     0
   );
   const durationMins = Math.round((Date.now() - startedAt.getTime()) / 60000);
+
+  // Volume delta vs last session
+  const volumeDelta = lastSessionVolume != null && lastSessionVolume > 0
+    ? ((totalVolume - lastSessionVolume) / lastSessionVolume) * 100
+    : null;
 
   const handleFinish = async () => {
     setSaving(true);
@@ -37,6 +45,7 @@ export function FinishModal({ open, onOpenChange, sessionId, startedAt }: Finish
         body: JSON.stringify({
           completedAt: new Date().toISOString(),
           durationMinutes: durationMins,
+          notes: notes.trim() || undefined,
         }),
       });
       finishSession();
@@ -46,25 +55,52 @@ export function FinishModal({ open, onOpenChange, sessionId, startedAt }: Finish
     }
   };
 
+  const formatVol = (v: number) =>
+    v >= 1000 ? `${(v / 1000).toFixed(1)}T` : `${Math.round(v)} kg`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm mx-4 rounded-3xl border-border/50">
         <DialogHeader>
-          <DialogTitle className="text-xl">Séance terminée</DialogTitle>
+          <DialogTitle className="text-xl">Séance terminée 🎉</DialogTitle>
         </DialogHeader>
 
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-3 my-2">
           <Stat icon={Clock} label="Durée" value={formatDuration(durationMins)} />
           <Stat icon={Dumbbell} label="Séries" value={String(totalSets)} />
-          <Stat icon={Trophy} label="Volume" value={`${Math.round(totalVolume / 1000)}T`} />
+          <Stat icon={Trophy} label="Volume" value={formatVol(totalVolume)} />
         </div>
 
+        {/* Volume comparison */}
+        {volumeDelta !== null && (
+          <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ${
+            volumeDelta > 0
+              ? "bg-emerald-500/10 text-emerald-400"
+              : volumeDelta < 0
+              ? "bg-orange-500/10 text-orange-400"
+              : "bg-muted/50 text-muted-foreground"
+          }`}>
+            {volumeDelta > 0 ? (
+              <TrendingUp size={15} />
+            ) : volumeDelta < 0 ? (
+              <TrendingDown size={15} />
+            ) : (
+              <Minus size={15} />
+            )}
+            <span className="font-semibold">
+              {volumeDelta > 0 ? "+" : ""}{Math.round(volumeDelta)}%
+            </span>
+            <span className="text-xs opacity-75">vs dernière séance</span>
+          </div>
+        )}
+
         {/* Per-exercise summary */}
-        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        <div className="space-y-1.5 max-h-36 overflow-y-auto">
           {exercises.map((ex) => {
-            const doneSets = ex.sets.filter((s) => s.status === "done");
-            if (doneSets.length === 0) return null;
-            const best = doneSets.reduce((b, s) => (s.weightKg > b.weightKg ? s : b), doneSets[0]);
+            const done = ex.sets.filter((s) => s.status === "done");
+            if (done.length === 0) return null;
+            const best = done.reduce((b, s) => (s.weightKg > b.weightKg ? s : b), done[0]);
             return (
               <div key={ex.exerciseId} className="flex items-center justify-between text-sm px-1">
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -72,14 +108,23 @@ export function FinishModal({ open, onOpenChange, sessionId, startedAt }: Finish
                   <span className="truncate text-sm">{ex.nameFr}</span>
                 </div>
                 <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                  {doneSets.length} × {best.weightKg} kg
+                  {done.length} × {best.weightKg} kg
                 </span>
               </div>
             );
           })}
         </div>
 
-        <div className="flex gap-2 mt-2">
+        {/* Notes */}
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes (facultatif) — fatigue, ressenti, idées…"
+          rows={2}
+          className="w-full rounded-2xl bg-muted/50 border border-border/50 px-3 py-2.5 text-sm resize-none placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-brand/50"
+        />
+
+        <div className="flex gap-2 mt-1">
           <Button
             variant="outline"
             className="flex-1 rounded-2xl"
@@ -92,7 +137,7 @@ export function FinishModal({ open, onOpenChange, sessionId, startedAt }: Finish
             onClick={handleFinish}
             disabled={saving}
           >
-            {saving ? "Sauvegarde..." : "Terminer"}
+            {saving ? "Sauvegarde…" : "Terminer"}
           </Button>
         </div>
       </DialogContent>

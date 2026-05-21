@@ -25,13 +25,15 @@ export async function POST(
   });
 
   // Check for personal records (only working sets)
-  if (!isWarmup && !isFailure) {
+  let isPR = false;
+  if (!isWarmup && !isFailure && reps > 0 && weightKg > 0) {
     const current1RM = estimate1RM(weightKg, reps);
     const bestRecord = await prisma.personalRecord.findFirst({
       where: { userId: "default-user", exerciseId, recordType: "1RM" },
       orderBy: { value: "desc" },
     });
     if (!bestRecord || current1RM > bestRecord.value) {
+      isPR = true;
       await prisma.personalRecord.create({
         data: {
           userId: "default-user",
@@ -44,5 +46,5 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ set });
+  return NextResponse.json({ set, isPR });
 }

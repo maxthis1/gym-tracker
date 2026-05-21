@@ -18,9 +18,10 @@ interface WorkoutSessionProps {
   templateId: string;
   templateName: string;
   exercises: ExerciseState[];
+  lastSessionVolume?: number | null;
 }
 
-export function WorkoutSession({ sessionId, templateId, templateName, exercises }: WorkoutSessionProps) {
+export function WorkoutSession({ sessionId, templateId, templateName, exercises, lastSessionVolume }: WorkoutSessionProps) {
   const { initSession, exercises: storeExercises, startedAt, restTimer } = useWorkoutStore();
   const [showFinish, setShowFinish] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -117,6 +118,7 @@ export function WorkoutSession({ sessionId, templateId, templateName, exercises 
           onOpenChange={setShowFinish}
           sessionId={sessionId}
           startedAt={startedAt}
+          lastSessionVolume={lastSessionVolume}
         />
       )}
     </div>

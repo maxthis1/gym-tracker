@@ -7,6 +7,8 @@ import Link from "next/link";
 import { getWeekStats, getStreak, getLastSession } from "@/lib/stats";
 import { formatDuration } from "@/lib/fitness";
 import { ResumeSessionBanner } from "@/components/workout/resume-session-banner";
+import { MuscleHeatmap } from "@/components/dashboard/muscle-heatmap";
+import { getWeekMuscleVolume } from "@/lib/stats";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -30,10 +32,11 @@ function formatDate(date: Date): string {
 }
 
 export default async function DashboardPage() {
-  const [weekStats, streak, lastSession] = await Promise.all([
+  const [weekStats, streak, lastSession, weekMuscleVolume] = await Promise.all([
     getWeekStats(),
     getStreak(),
     getLastSession(),
+    getWeekMuscleVolume(),
   ]);
 
   const weekVolume = weekStats.volume;
@@ -85,6 +88,14 @@ export default async function DashboardPage() {
           <StatCard icon={Dumbbell} label="Séances" value={String(weekCount)} color="text-brand" />
           <StatCard icon={TrendingUp} label="Volume" value={formatVolume(weekVolume)} color="text-emerald-400" />
         </div>
+      </div>
+
+      {/* Heatmap musculaire */}
+      <div className="px-4 pt-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Muscles travaillés cette semaine
+        </p>
+        <MuscleHeatmap volumeByMuscle={weekMuscleVolume} />
       </div>
 
       {/* Séances cette semaine */}

@@ -50,12 +50,19 @@ export default async function WorkoutSessionPage({ params }: Props) {
     return buildExerciseState(te, lastSets);
   });
 
+  const lastVolume = lastSession
+    ? lastSession.sets
+        .filter((s) => !s.isWarmup)
+        .reduce((acc, s) => acc + s.weightKg * s.reps, 0)
+    : null;
+
   return (
     <WorkoutSession
       sessionId={sessionId}
       templateId={session.template.id}
       templateName={session.template.name}
       exercises={exercises}
+      lastSessionVolume={lastVolume}
     />
   );
 }

@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { suggestNextWeight } from "@/lib/fitness";
+import { toast } from "sonner";
 
 export type SetStatus = "pending" | "done" | "failed";
 
@@ -71,6 +72,22 @@ const DEFAULT_WARMUP: WarmupState = {
   ],
 };
 
+interface PendingSet {
+  sessionId: string;
+  exIdx: number;
+  setIdx: number;
+  payload: {
+    exerciseId: string;
+    setNumber: number;
+    weightKg: number;
+    reps: number;
+    rir: number;
+    isWarmup: boolean;
+    isFailure: boolean;
+    notes: string;
+  };
+}
+
 interface WorkoutStore {
   sessionId: string | null;
   templateName: string;
@@ -79,6 +96,7 @@ interface WorkoutStore {
   restTimer: RestTimer;
   isFinished: boolean;
   warmup: WarmupState;
+  pendingSets: PendingSet[];
 
   initSession: (sessionId: string, templateName: string, exercises: ExerciseState[]) => void;
   updateSetField: (
@@ -91,6 +109,7 @@ interface WorkoutStore {
   failSet: (exIdx: number, setIdx: number, sessionId: string) => void;
   addSet: (exIdx: number) => void;
   startRestTimer: (seconds: number, label: string) => void;
+  addRestTime: (seconds: number) => void;
   tickTimer: () => void;
   stopTimer: () => void;
   finishSession: () => void;
@@ -100,6 +119,8 @@ interface WorkoutStore {
   updateWarmupReps: (exIdx: number, setIdx: number, reps: number) => void;
   toggleWarmupSet: (exIdx: number, setIdx: number) => void;
   addWarmupSet: (exIdx: number) => void;
+  // Offline sync
+  syncPendingSets: () => Promise<void>;
 }
 
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -114,6 +135,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       restTimer: { active: false, remaining: 0, total: 0, label: "" },
       isFinished: false,
       warmup: DEFAULT_WARMUP,
+      pendingSets: [],
 
       initSession(sessionId, templateName, exercises) {
         const state = get();
@@ -151,20 +173,21 @@ export const useWorkoutStore = create<WorkoutStore>()(
         const s = ex.sets[setIdx];
         if (s.status !== "pending") return;
 
-        // Persist to DB (fire-and-forget, errors silently ignored for offline resilience)
+        // Persist to DB
+        const payload = {
+          exerciseId: ex.exerciseId,
+          setNumber: s.setNumber,
+          weightKg: s.weightKg,
+          reps: s.reps,
+          rir: s.rir,
+          isWarmup: s.isWarmup,
+          isFailure: false,
+          notes: "",
+        };
         fetch(`/api/sessions/${sessionId}/sets`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            exerciseId: ex.exerciseId,
-            setNumber: s.setNumber,
-            weightKg: s.weightKg,
-            reps: s.reps,
-            rir: s.rir,
-            isWarmup: s.isWarmup,
-            isFailure: false,
-            notes: "",
-          }),
+          body: JSON.stringify(payload),
         })
           .then((r) => r.json())
           .then((data) => {
@@ -175,8 +198,20 @@ export const useWorkoutStore = create<WorkoutStore>()(
                 return { exercises };
               });
             }
+            if (data.isPR) {
+              const exName = get().exercises[exIdx]?.nameFr ?? "";
+              toast.success("🏆 Nouveau PR !", {
+                description: `${exName} — meilleur 1RM estimé`,
+                duration: 4000,
+              });
+            }
           })
-          .catch(() => {}); // offline — will sync later
+          .catch(() => {
+            // Offline — queue for later sync
+            set((state) => ({
+              pendingSets: [...state.pendingSets, { sessionId, exIdx, setIdx, payload }],
+            }));
+          });
 
         set((state) => {
           const exercises = structuredClone(state.exercises);
@@ -275,6 +310,16 @@ export const useWorkoutStore = create<WorkoutStore>()(
         }, 1000);
       },
 
+      addRestTime(seconds) {
+        set((state) => ({
+          restTimer: {
+            ...state.restTimer,
+            remaining: Math.max(0, state.restTimer.remaining + seconds),
+            total: Math.max(state.restTimer.total, state.restTimer.remaining + seconds),
+          },
+        }));
+      },
+
       tickTimer() {},
 
       stopTimer() {
@@ -291,6 +336,41 @@ export const useWorkoutStore = create<WorkoutStore>()(
           _timerInterval = null;
         }
         set({ isFinished: true });
+      },
+
+      // ── Offline sync ────────────────────────────────────────────────────────
+      async syncPendingSets() {
+        const { pendingSets } = get();
+        if (pendingSets.length === 0) return;
+
+        const remaining: PendingSet[] = [];
+        for (const pending of pendingSets) {
+          try {
+            const r = await fetch(`/api/sessions/${pending.sessionId}/sets`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(pending.payload),
+            });
+            if (!r.ok) throw new Error("server error");
+            const data = await r.json();
+            if (data.set?.id) {
+              set((state) => {
+                const exercises = structuredClone(state.exercises);
+                const ex = exercises[pending.exIdx];
+                if (ex?.sets[pending.setIdx]) {
+                  ex.sets[pending.setIdx].dbId = data.set.id;
+                }
+                return { exercises };
+              });
+            }
+          } catch {
+            remaining.push(pending);
+          }
+        }
+        set({ pendingSets: remaining });
+        if (remaining.length === 0 && pendingSets.length > 0) {
+          toast.success("Synchronisation OK", { description: `${pendingSets.length} série(s) sauvegardée(s)` });
+        }
       },
 
       // ── Warmup actions ──────────────────────────────────────────────────────
@@ -337,6 +417,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
         exercises: state.exercises,
         isFinished: state.isFinished,
         warmup: state.warmup,
+        pendingSets: state.pendingSets,
       }),
       // Re-hydrate startedAt as a real Date (localStorage stores it as a string)
       onRehydrateStorage: () => (state) => {
