@@ -6,6 +6,7 @@ import { ExerciseCard } from "./exercise-card";
 import { RestTimer } from "./rest-timer";
 import { FinishModal } from "./finish-modal";
 import { CoachBriefing } from "./coach-briefing";
+import { WarmupCard } from "./warmup-card";
 import { Button } from "@/components/ui/button";
 import { Flag, ChevronLeft } from "lucide-react";
 import Link from "next/link";
@@ -91,6 +92,11 @@ export function WorkoutSession({ sessionId, templateId, templateName, exercises 
 
       {/* Coach briefing */}
       <CoachBriefing templateId={templateId} templateName={templateName} />
+
+      {/* Warmup */}
+      <div className="mt-3">
+        <WarmupCard />
+      </div>
 
       {/* Exercise list */}
       <div className="px-3 mt-3 space-y-3">

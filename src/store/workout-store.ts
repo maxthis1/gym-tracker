@@ -44,6 +44,33 @@ interface RestTimer {
   label: string;
 }
 
+// ── Warmup state ─────────────────────────────────────────────────────────────
+export interface WarmupBodySet {
+  reps: number;
+  done: boolean;
+}
+
+export interface WarmupExercise {
+  id: string;        // e.g. "tractions" | "dips"
+  name: string;
+  sets: WarmupBodySet[];
+}
+
+export interface WarmupState {
+  runningKm: number;
+  runningDone: boolean;
+  exercises: WarmupExercise[];
+}
+
+const DEFAULT_WARMUP: WarmupState = {
+  runningKm: 0,
+  runningDone: false,
+  exercises: [
+    { id: "tractions", name: "Tractions", sets: [{ reps: 5, done: false }, { reps: 5, done: false }] },
+    { id: "dips",      name: "Dips",      sets: [{ reps: 8, done: false }, { reps: 8, done: false }] },
+  ],
+};
+
 interface WorkoutStore {
   sessionId: string | null;
   templateName: string;
@@ -51,6 +78,7 @@ interface WorkoutStore {
   exercises: ExerciseState[];
   restTimer: RestTimer;
   isFinished: boolean;
+  warmup: WarmupState;
 
   initSession: (sessionId: string, templateName: string, exercises: ExerciseState[]) => void;
   updateSetField: (
@@ -66,6 +94,12 @@ interface WorkoutStore {
   tickTimer: () => void;
   stopTimer: () => void;
   finishSession: () => void;
+  // Warmup actions
+  setRunningKm: (km: number) => void;
+  toggleRunningDone: () => void;
+  updateWarmupReps: (exIdx: number, setIdx: number, reps: number) => void;
+  toggleWarmupSet: (exIdx: number, setIdx: number) => void;
+  addWarmupSet: (exIdx: number) => void;
 }
 
 let _timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -79,6 +113,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       exercises: [],
       restTimer: { active: false, remaining: 0, total: 0, label: "" },
       isFinished: false,
+      warmup: DEFAULT_WARMUP,
 
       initSession(sessionId, templateName, exercises) {
         const state = get();
@@ -98,6 +133,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
           exercises,
           isFinished: false,
           restTimer: { active: false, remaining: 0, total: 0, label: "" },
+          warmup: DEFAULT_WARMUP,
         });
       },
 
@@ -256,6 +292,40 @@ export const useWorkoutStore = create<WorkoutStore>()(
         }
         set({ isFinished: true });
       },
+
+      // ── Warmup actions ──────────────────────────────────────────────────────
+      setRunningKm(km) {
+        set((state) => ({ warmup: { ...state.warmup, runningKm: km } }));
+      },
+
+      toggleRunningDone() {
+        set((state) => ({ warmup: { ...state.warmup, runningDone: !state.warmup.runningDone } }));
+      },
+
+      updateWarmupReps(exIdx, setIdx, reps) {
+        set((state) => {
+          const exercises = structuredClone(state.warmup.exercises);
+          exercises[exIdx].sets[setIdx].reps = reps;
+          return { warmup: { ...state.warmup, exercises } };
+        });
+      },
+
+      toggleWarmupSet(exIdx, setIdx) {
+        set((state) => {
+          const exercises = structuredClone(state.warmup.exercises);
+          exercises[exIdx].sets[setIdx].done = !exercises[exIdx].sets[setIdx].done;
+          return { warmup: { ...state.warmup, exercises } };
+        });
+      },
+
+      addWarmupSet(exIdx) {
+        set((state) => {
+          const exercises = structuredClone(state.warmup.exercises);
+          const lastSet = exercises[exIdx].sets[exercises[exIdx].sets.length - 1];
+          exercises[exIdx].sets.push({ reps: lastSet?.reps ?? 5, done: false });
+          return { warmup: { ...state.warmup, exercises } };
+        });
+      },
     }),
     {
       name: "gym-workout-session",
@@ -266,6 +336,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
         startedAt: state.startedAt,
         exercises: state.exercises,
         isFinished: state.isFinished,
+        warmup: state.warmup,
       }),
       // Re-hydrate startedAt as a real Date (localStorage stores it as a string)
       onRehydrateStorage: () => (state) => {
