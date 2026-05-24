@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
 import { StartWorkoutButton } from "@/components/workout/start-workout-button";
-import { Clock, ChevronRight } from "lucide-react";
+import { Clock, ChevronRight, Shuffle } from "lucide-react";
 
 const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -29,6 +29,31 @@ export default async function NewWorkoutPage() {
     <div>
       <PageHeader title="Nouvelle séance" subtitle="Choisis ton entraînement" />
       <div className="px-4 pt-2 space-y-3">
+
+        {/* Free session button */}
+        <StartWorkoutButton templateId={null} className="w-full text-left">
+          <Card className="p-4 border-brand/30 bg-brand/5 hover:bg-brand/10 transition-all active:scale-[.98] cursor-pointer w-full">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-brand/15 flex items-center justify-center shrink-0">
+                <Shuffle size={18} className="text-brand" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-sm">Séance libre</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Choisis tes exercices au fur et à mesure
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </div>
+          </Card>
+        </StartWorkoutButton>
+
+        {program?.templates && program.templates.length > 0 && (
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">
+            Séances programmées
+          </p>
+        )}
+
         {!program && (
           <Card className="p-4 border-border/50 text-center text-sm text-muted-foreground">
             Aucun programme actif.

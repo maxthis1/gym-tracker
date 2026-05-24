@@ -108,6 +108,8 @@ interface WorkoutStore {
   validateSet: (exIdx: number, setIdx: number, sessionId: string) => void;
   failSet: (exIdx: number, setIdx: number, sessionId: string) => void;
   addSet: (exIdx: number) => void;
+  addExercise: (exercise: ExerciseState) => void;
+  removeExercise: (exIdx: number) => void;
   startRestTimer: (seconds: number, label: string) => void;
   addRestTime: (seconds: number) => void;
   tickTimer: () => void;
@@ -268,6 +270,18 @@ export const useWorkoutStore = create<WorkoutStore>()(
         if (typeof navigator !== "undefined" && "vibrate" in navigator) {
           navigator.vibrate([200]);
         }
+      },
+
+      addExercise(exercise) {
+        set((state) => ({ exercises: [...state.exercises, exercise] }));
+      },
+
+      removeExercise(exIdx) {
+        set((state) => {
+          const exercises = structuredClone(state.exercises);
+          exercises.splice(exIdx, 1);
+          return { exercises };
+        });
       },
 
       addSet(exIdx) {

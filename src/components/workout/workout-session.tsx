@@ -7,8 +7,9 @@ import { RestTimer } from "./rest-timer";
 import { FinishModal } from "./finish-modal";
 import { CoachBriefing } from "./coach-briefing";
 import { WarmupCard } from "./warmup-card";
+import { ExercisePicker } from "./exercise-picker";
 import { Button } from "@/components/ui/button";
-import { Flag, ChevronLeft } from "lucide-react";
+import { Flag, ChevronLeft, Plus } from "lucide-react";
 import Link from "next/link";
 import { formatDuration } from "@/lib/fitness";
 import { useRouter } from "next/navigation";
@@ -24,6 +25,7 @@ interface WorkoutSessionProps {
 export function WorkoutSession({ sessionId, templateId, templateName, exercises, lastSessionVolume }: WorkoutSessionProps) {
   const { initSession, exercises: storeExercises, startedAt, restTimer } = useWorkoutStore();
   const [showFinish, setShowFinish] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const router = useRouter();
 
@@ -101,6 +103,14 @@ export function WorkoutSession({ sessionId, templateId, templateName, exercises,
 
       {/* Exercise list */}
       <div className="px-3 mt-3 space-y-3">
+        {storeExercises.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-border/50 p-8 text-center">
+            <p className="text-sm text-muted-foreground">Aucun exercice</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Appuie sur &quot;+ Exercice&quot; pour commencer
+            </p>
+          </div>
+        )}
         {storeExercises.map((ex, exIdx) => (
           <ExerciseCard
             key={ex.templateExerciseId}
@@ -109,7 +119,23 @@ export function WorkoutSession({ sessionId, templateId, templateName, exercises,
             sessionId={sessionId}
           />
         ))}
+
+        {/* Add exercise button */}
+        <button
+          onClick={() => setShowPicker(true)}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-3xl border border-dashed border-brand/40 text-sm font-medium text-brand hover:bg-brand/5 transition-colors"
+        >
+          <Plus size={16} />
+          Ajouter un exercice
+        </button>
       </div>
+
+      {/* Exercise picker */}
+      <ExercisePicker
+        open={showPicker}
+        onClose={() => setShowPicker(false)}
+        sessionId={sessionId}
+      />
 
       {/* Finish modal */}
       {startedAt && (

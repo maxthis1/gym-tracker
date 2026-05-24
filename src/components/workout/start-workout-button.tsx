@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 interface StartWorkoutButtonProps {
-  templateId: string;
+  templateId: string | null;
   children: React.ReactNode;
   className?: string;
 }
@@ -20,7 +20,7 @@ export function StartWorkoutButton({ templateId, children, className }: StartWor
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId }),
+        body: JSON.stringify(templateId ? { templateId } : {}),
       });
       const { sessionId } = await res.json();
       router.push(`/workout/${sessionId}`);

@@ -5,14 +5,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { templateId, bodyweightKg, energyLevel, sleepHours, stressLevel } = body;
 
-  if (!templateId) {
-    return NextResponse.json({ error: "templateId required" }, { status: 400 });
-  }
-
   const session = await prisma.workoutSession.create({
     data: {
       userId: "default-user",
-      workoutTemplateId: templateId,
+      workoutTemplateId: templateId ?? null,
       bodyweightKg: bodyweightKg ?? null,
       energyLevel: energyLevel ?? null,
       sleepHours: sleepHours ?? null,

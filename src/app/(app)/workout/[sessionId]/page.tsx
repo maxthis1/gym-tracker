@@ -26,9 +26,22 @@ export default async function WorkoutSessionPage({ params }: Props) {
     },
   });
 
-  if (!session || !session.template) notFound();
+  if (!session) notFound();
 
-  // Fetch last session of the same template for pre-fill
+  // ── Free session (no template) ──────────────────────────────────────────────
+  if (!session.template) {
+    return (
+      <WorkoutSession
+        sessionId={sessionId}
+        templateId=""
+        templateName="Séance libre"
+        exercises={[]}
+        lastSessionVolume={null}
+      />
+    );
+  }
+
+  // ── Template session ────────────────────────────────────────────────────────
   const lastSession = await prisma.workoutSession.findFirst({
     where: {
       userId: "default-user",
@@ -40,7 +53,6 @@ export default async function WorkoutSessionPage({ params }: Props) {
     include: { sets: { orderBy: { setNumber: "asc" } } },
   });
 
-  // Build exercise state with pre-filled suggestions
   const exercises = session.template.exercises.map((te) => {
     const lastSets = lastSession
       ? lastSession.sets
