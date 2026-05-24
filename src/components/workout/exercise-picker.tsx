@@ -141,7 +141,7 @@ export function ExercisePicker({ open, onClose, sessionId }: ExercisePickerProps
       />
 
       {/* Drawer */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-card rounded-t-3xl border-t border-border/50 max-h-[90dvh]">
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-card rounded-t-3xl border-t border-border/50" style={{ maxHeight: "90vh" }}>
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
@@ -178,7 +178,7 @@ export function ExercisePicker({ open, onClose, sessionId }: ExercisePickerProps
         </div>
 
         {/* List */}
-        <div className="overflow-y-auto flex-1 pb-safe">
+        <div className="overflow-y-auto flex-1 min-h-0 pb-20">
           {Object.entries(grouped).map(([muscle, exList]) => (
             <div key={muscle}>
               <p className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 sticky top-0">
